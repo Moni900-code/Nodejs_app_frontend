@@ -10,42 +10,27 @@ jobs:
     runs-on: self-hosted
 
     steps:
-    - name: Checkout repository
+    - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Build Docker Image
+    - name: Build Docker image
       run: docker build -t frontend-only-app .
 
-    - name: Run Docker Container
-      run: docker run -d -p 3006:3000 --name running-frontend-app-v6 frontend-only-app
+    - name: Run container
+      run: docker run -d -p 3006:3000 --name frontend-app frontend-only-app
 
-    - name: Wait and check if app is running (HTTP 200)
+    - name: Wait for app (max 10 tries)
       run: |
-        echo "Waiting for app to be ready..."
         for i in {1..10}; do
-          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" --fail http://localhost:3006 || echo "000")
-          if [ "$STATUS_CODE" -eq 200 ]; then
-            echo "App is running and returned HTTP 200!"
-            break
-          else
-            echo "Attempt $i: Got HTTP $STATUS_CODE, retrying in 3s..."
-            sleep 3
-          fi
-
-          if [ "$i" -eq 10 ]; then
-            echo "App failed to respond with HTTP 200 after 10 attempts."
-            docker logs running-frontend-app-v4
-            exit 1
-          fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3006 || echo 000)
+          [ "$code" = "200" ] && echo "App OK and returned HTTP 200!" && exit 0
+          echo "Try $i: Got $code. Retrying..." && sleep 3
         done
+        echo "App did not respond with 200." && docker logs frontend-app && exit 1
 
-    - name: Show container logs (for debugging)
+    - name: Show logs if failed
       if: failure()
-      run: docker logs running-frontend-app-v6
+      run: docker logs frontend-app
 
-    - name: Stop and remove Docker container
-      run: |
-        docker stop running-frontend-app-v6
-        docker rm running-frontend-app-v6
-
-
+    - name: Clean up
+      run: docker rm -f frontend-app
