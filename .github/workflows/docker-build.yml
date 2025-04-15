@@ -17,13 +17,13 @@ jobs:
       run: docker build -t frontend-only-app .
 
     - name: Run Docker Container
-      run: docker run -d -p 3004:3000 --name running-frontend-app-v4 frontend-only-app
+      run: docker run -d -p 3005:3000 --name running-frontend-app-v5 frontend-only-app
 
     - name: Test if app is running and returning status 200
       run: |
         # Wait for the app to be ready by retrying a few times
         for i in {1..10}; do
-          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3004)
+          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3005)
           if [ "$STATUS_CODE" -eq 200 ]; then
             echo "App is running and returned HTTP 200!"
             break
@@ -39,6 +39,6 @@ jobs:
 
     - name: Stop and remove Docker container
       run: |
-        docker stop running-frontend-app-v4
-        docker rm running-frontend-app-v4
+        docker stop running-frontend-app-v5
+        docker rm running-frontend-app-v5
 
