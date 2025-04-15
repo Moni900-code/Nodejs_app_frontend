@@ -17,7 +17,7 @@ jobs:
       run: docker build -t frontend-only-app .
 
     - name: Run Docker Container
-      run: docker run -d -p 3000:3000 --name running-frontend-app-v2 frontend-only-app
+      run: docker run -d -p 3001:3000 --name running-frontend-app-v2 frontend-only-app
 
     - name: Wait for container to initialize
       run: sleep 5
