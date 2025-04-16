@@ -210,34 +210,61 @@ steps:
 
 - **Purpose**: Runs the Docker container `frontend-app` in detached mode (`-d`), maps port `3006` on the host to port `3000` in the container.
 
+
 ```yaml
-  - name: Wait for app (max 10 tries)
+  - name: Wait for container to be ready
     run: |
-      for i in {1..10}; do
-        code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3006 || echo 000)
-        [ "$code" = "200" ] && echo "App OK and returned HTTP 200!" && exit 0
-        echo "Try $i: Got $code. Retrying..." && sleep 3
-      done
-      echo "App did not respond with 200." && docker logs frontend-app && exit 1
+      echo "Waiting for application to start..."
+      sleep 5
 ```
-
-- **Purpose**: Polls the application at `http://localhost:3006` up to 10 times, waiting 3 seconds between attempts. It checks for an HTTP `200 OK` response to confirm the app is running. If successful, it prints a success message and exits with code `0`. If all attempts fail, it prints an error, shows the container logs for debugging, and exits with code `1` (indicating failure).
+- **Purpose**: Waits 5 seconds to allow the application to start before proceeding to the next step.
 
 ```yaml
-  - name: Show logs if failed
-    if: failure()
-    run: docker logs frontend-app
+  test:
+    needs: build-and-run
+    runs-on: self-hosted
 ```
-
-- **Purpose**: Runs only if the previous step fails (using the `if: failure()` condition). It outputs the container logs to help diagnose why the application didn’t return a `200` status.
+- **Purpose**: Defines a job named `test` that runs on a **self-hosted runner**. It depends on the `build-and-run` job (`needs: build-and-run`), so it only runs after `build-and-run` completes successfully.
 
 ```yaml
-  - name: Clean up
-    run: docker rm -f frontend-app
+steps:
+  - name: Check if service is accessible (200 status code)
+    run: |
+      HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3006)
+      if [ "$HTTP_STATUS" -eq 200 ]; then
+        echo "Service is accessible with status code 200"
+      else
+        echo "Service check failed. Status code: $HTTP_STATUS"
+        exit 1
+      fi
 ```
+- **Purpose**: Checks the HTTP response status at `http://localhost:3006`. If the status is `200`, it prints a success message. If not, it prints a failure message with the status code and exits with code `1`, causing the workflow to fail.
 
-- **Purpose**: Removes the container to keep the environment clean.
+```yaml
+  cleanup:
+    needs: [build-and-run, test]
+    runs-on: self-hosted
+    if: always()
+```
+- **Purpose**: Defines a job named `cleanup` that runs on a **self-hosted runner**. It depends on both `build-and-run` and `test` jobs (`needs: [build-and-run, test]`) and runs regardless of their success or failure due to `if: always()`.
+
+```yaml
+steps:
+  - name: Stop and remove container
+    run: |
+      echo "Cleaning up container..."
+      docker stop frontend-app || true
+      docker rm frontend-app || true
+      echo "Container removed successfully"
+```
+- **Purpose**: Stops (`docker stop`) and removes (`docker rm`) the `frontend-app` container. The `|| true` ensures the workflow continues even if the commands fail (e.g., if the container doesn’t exist). Prints a success message upon completion.
+
 ---
+Visualization of jobs: 
+
+![image](https://github.com/user-attachments/assets/107a5d1b-d270-4cc6-8a30-1b1578d44a32)
+
+--
 
 ###  Why This Workflow Is Useful
 
@@ -290,7 +317,7 @@ Pushing to the `main` branch triggers the GitHub Actions workflow.
 
 Once the workflow completes, the Docker container runs on the self-hosted runner. Verify the application is working by checking the HTTP response:
 
-![image](https://github.com/user-attachments/assets/ffce7489-617e-4d85-99a8-c54fe7656397)
+![test](https://github.com/user-attachments/assets/17a9993a-93f4-4f3e-abed-a0a777f9e8ff)
 
 
 A `200 OK` status confirms that:
