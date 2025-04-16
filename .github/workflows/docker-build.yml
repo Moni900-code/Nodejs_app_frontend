@@ -3,34 +3,48 @@ name: Docker Build with Self-hosted Runner
 on:
   push:
     branches:
-      - main
+      - action
 
 jobs:
-  build:
+  build-and-run:
     runs-on: self-hosted
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    - name: Build Docker image
-      run: docker build -t frontend-only-app .
-
-    - name: Run container
-      run: docker run -d -p 3006:3000 --name frontend-app frontend-only-app
-
-    - name: Wait for app (max 10 tries)
-      run: |
-        for i in {1..10}; do
-          code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3006 || echo 000)
-          [ "$code" = "200" ] && echo "App OK and returned HTTP 200!" && exit 0
-          echo "Try $i: Got $code. Retrying..." && sleep 3
-        done
-        echo "App did not respond with 200." && docker logs frontend-app && exit 1
-
-    - name: Show logs if failed
-      if: failure()
-      run: docker logs frontend-app
-
-    - name: Clean up
-      run: docker rm -f frontend-app
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Build Docker image
+        run: docker build -t frontend-only-app .
+        
+      - name: Run container for testing
+        run: docker run -d -p 3006:3000 --name frontend-app frontend-only-app
+        
+      - name: Wait for container to be ready
+        run: |
+          echo "Waiting for application to start..."
+          sleep 5
+          
+  test:
+    needs: build-and-run
+    runs-on: self-hosted
+    steps:
+      - name: Check if service is accessible (200 status code)
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3006)
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "Service is accessible with status code 200"
+          else
+            echo "Service check failed. Status code: $HTTP_STATUS"
+            exit 1
+          fi
+          
+  cleanup:
+    needs: [build-and-run, test]
+    runs-on: self-hosted
+    if: always()
+    steps:
+      - name: Stop and remove container
+        run: |
+          echo "Cleaning up container..."
+          docker stop frontend-app || true
+          docker rm frontend-app || true
+          echo "Container removed successfully"
