@@ -3,7 +3,7 @@ name: Docker Build with Self-hosted Runner
 on:
   push:
     branches:
-      - action
+      - main
 
 jobs:
   build-and-run:
